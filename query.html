@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SAD — Query</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="link" href="index.html">← Home</a>
+    <div class="spacer"></div>
+    <a class="link" href="upload.html">Go to Upload →</a>
+  </header>
+
+  <main class="page">
+    <h1>Group Query</h1>
+
+    <section class="card">
+      <div class="grid2">
+        <div>
+          <label class="label">Day</label>
+          <select id="queryDay" class="input">
+            <option>Monday</option><option>Tuesday</option><option>Wednesday</option>
+            <option>Thursday</option><option>Friday</option>
+          </select>
+        </div>
+
+        <div></div>
+
+        <div>
+          <label class="label">Start</label>
+          <select id="queryStart" class="input"></select>
+        </div>
+
+        <div>
+          <label class="label">End</label>
+          <select id="queryEnd" class="input"></select>
+        </div>
+      </div>
+
+      <div class="row">
+        <button id="queryButton" class="btn">Run Query</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 style="margin:0 0 12px;">Results</h2>
+      <div id="resultsContainer"></div>
+    </section>
+  </main>
+
+  <!-- Shared core -->
+  <script defer src="app.js"></script>
+  <!-- Query page wiring -->
+  <script defer src="query.js?v=20260211a"></script>
+</body>
+</html>

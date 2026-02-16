@@ -1,0 +1,609 @@
+:root{
+  /* LMU COLORS */
+  --lmu-blue: #002855;
+  --lmu-crimson: #8C1D18;
+
+  --bg-page: #f5f6f8;
+  --bg-card: #ffffff;
+
+  --text-main: #1a1a1a;
+  --text-muted: #555;
+
+  --radius: 14px;
+  --shadow-soft: 0 8px 20px rgba(0,0,0,0.10);
+
+  --border: rgba(0,0,0,0.16);
+}
+
+*{ box-sizing:border-box; }
+
+body{
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+
+  background-color: var(--lmu-blue);
+  background-image: url("./images/spongebob.png");
+  background-repeat: repeat;
+  background-size: 200px;
+
+  color: var(--text-main);
+}
+
+/* =========================
+   TOP BAR (shared)
+   ========================= */
+.topbar{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  padding:14px 18px;
+  background: rgba(0,0,0,0.12);
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+}
+
+.topbar .spacer{ flex:1; }
+
+.topbar .link{
+  color:#fff;
+  text-decoration:none;
+  font-weight:800;
+  opacity:0.95;
+}
+
+.topbar .link:hover{
+  opacity:1;
+  text-decoration:underline;
+}
+
+/* =========================
+   PAGE WRAPPER (shared)
+   ========================= */
+.page{
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 22px 18px 28px;
+}
+
+h1{
+  color:#fff;
+  text-align:center;
+  margin: 10px 0 10px;
+  font-weight:900;
+  letter-spacing:0.4px;
+}
+
+h2{
+  margin:0;
+  font-weight:900;
+  color: var(--lmu-blue);
+}
+
+.muted{
+  color: rgba(255,255,255,0.85);
+  text-align:center;
+  margin: 0 0 18px;
+  font-weight:700;
+}
+
+/* If muted is used inside cards, make it readable on white */
+.card .muted{
+  color: var(--text-muted);
+  text-align:left;
+  margin: 10px 0 0;
+  font-weight:700;
+}
+
+/* =========================
+   CARD SYSTEM (split pages)
+   ========================= */
+.card{
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
+  padding: 16px;
+  margin: 14px 0;
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+/* =========================
+   ROW / UTILITIES
+   ========================= */
+.row{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin-top: 12px;
+}
+
+.row .spacer{ flex:1; }
+
+/* =========================
+   FORMS (new class system)
+   ========================= */
+.label{
+  display:block;
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--text-muted);
+  margin: 10px 0 6px;
+  letter-spacing: 0.2px;
+}
+
+.input{
+  width:100%;
+  background:#fff;
+  color:#000;
+  border: 1px solid rgba(0,0,0,0.18);
+  border-radius: 12px;
+  padding: 11px 12px;
+  font-size: 14px;
+}
+
+.input:focus{
+  outline:none;
+  border-color: var(--lmu-crimson);
+  box-shadow: 0 0 0 3px rgba(140,29,24,0.14);
+}
+
+/* Keep native selects readable */
+select.input option{
+  background:#fff;
+  color:#000;
+}
+
+/* =========================
+   BUTTONS (new class system)
+   ========================= */
+.btn{
+  background: var(--lmu-crimson);
+  color:#fff;
+  border:none;
+  border-radius: 12px;
+  padding: 11px 14px;
+  font-weight: 900;
+  cursor:pointer;
+  text-decoration:none;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  white-space:nowrap;
+}
+
+.btn-toggle{
+  background: var(--lmu-blue);
+}
+.btn-toggle:hover{
+  filter: brightness(1.05);
+}
+
+.btn:hover{
+  filter: brightness(0.95);
+}
+
+.btn:disabled{
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: none;
+}
+
+.btn-danger{
+  background: #6c1110;
+}
+
+.btn-small{
+  background: var(--lmu-crimson);
+  color:#fff;
+  border:none;
+  border-radius: 10px;
+  padding: 7px 10px;
+  font-weight: 900;
+  cursor:pointer;
+}
+
+.btn-small:hover{
+  filter: brightness(0.95);
+}
+
+.btn-small:disabled{
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: none;
+}
+
+/* Default: buttons in a row share space nicely */
+.row .btn{
+  flex: 1 1 0;
+}
+
+/* Home page button row: keep buttons not absurdly huge */
+.page > .row{
+  justify-content:center;
+}
+.page > .row .btn{
+  flex: 0 0 auto;
+  min-width: 220px;
+}
+
+/* =========================
+   GRID (query page)
+   ========================= */
+.grid2{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* =========================
+   UPLOAD PAGE LAYOUT
+   ========================= */
+.layout-upload{
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+/* =========================
+   RESULTS (existing bubble system)
+   ========================= */
+#resultsContainer{
+  margin-top: 8px;
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px,1fr));
+  gap:12px;
+}
+
+/* =========================
+   QUERY RESULTS (bridge for query.js class names)
+   ========================= */
+.results-head{
+  margin: 6px 0 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f1f3f6;
+  border: 1px solid #d0d4da;
+  font-weight: 900;
+  color: var(--lmu-blue);
+}
+
+.results-head .muted{
+  color: var(--text-muted);
+  text-align: left;
+  margin: 6px 0 0;
+  font-weight: 700;
+}
+
+.result-name{
+  font-weight: 900;
+  text-transform: uppercase;
+  color: var(--lmu-blue);
+  margin-bottom: 8px;
+}
+
+.result-ranges{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+/* Single canonical pill */
+.pill{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  background:#f1f3f6;
+  border:1px solid #d0d4da;
+  border-radius:999px;
+  padding:6px 10px;
+  font-weight:900;
+  font-size:13px;
+  color:var(--lmu-blue);
+}
+
+.warn{
+  background:#fff;
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: var(--shadow-soft);
+  border-left: 6px solid var(--lmu-crimson);
+  border: 1px solid rgba(0,0,0,0.06);
+  font-weight: 900;
+  color: var(--text-main);
+}
+
+.skipped{
+  grid-column: 1 / -1;
+  background:#fff;
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: var(--shadow-soft);
+  border-left: 6px solid var(--lmu-blue);
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+.skipped summary{
+  cursor: pointer;
+  font-weight: 900;
+  color: var(--lmu-blue);
+}
+
+.result-bubble{
+  background:#fff;
+  border-radius:14px;
+  padding:14px;
+  box-shadow:var(--shadow-soft);
+  border-left:6px solid var(--lmu-crimson);
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+.result-bubble-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:8px;
+}
+
+.result-bubble-name{
+  font-weight:900;
+  text-transform:uppercase;
+  color:var(--lmu-blue);
+}
+
+.result-bubble-badge{
+  background:var(--lmu-blue);
+  color:#fff;
+  padding:6px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:900;
+}
+
+.result-bubble-sub{
+  font-size:13px;
+  color:var(--text-muted);
+  margin-bottom:8px;
+  font-weight:700;
+}
+
+.result-bubble-msg{
+  font-weight:900;
+  margin-bottom:6px;
+}
+
+.result-bubble-times{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+.time-pill{
+  background:#f1f3f6;
+  border:1px solid #d0d4da;
+  border-radius:999px;
+  padding:6px 10px;
+  font-weight:900;
+  font-size:13px;
+  color:var(--lmu-blue);
+}
+
+/* Empty / warn states (if you use them) */
+.result-bubble-empty{
+  border-left-color: var(--lmu-blue);
+}
+
+.result-bubble-warn{
+  margin-top: 8px;
+  color: var(--text-muted);
+  font-weight: 800;
+}
+
+/* =========================
+   UPLOAD STATUS BUBBLE
+   ========================= */
+.status-bubble{
+  margin-top: 12px;
+  background: #fff;
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: var(--shadow-soft);
+  border-left: 6px solid var(--lmu-blue);
+  font-weight: 900;
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+.status-bubble.status-working{
+  border-left-color: var(--lmu-crimson);
+}
+
+.status-bubble .status-sub{
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+/* =========================
+   MODAL (matches your upload.html classes)
+   ========================= */
+body.modal-open { overflow: hidden; }
+
+.modal{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.6);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:16px;
+  z-index: 1000;
+}
+
+.modal-card{
+  background:#fff;
+  border-radius: 16px;
+  padding: 12px;
+  max-width: 1000px;
+  width: 95vw;
+  box-shadow: var(--shadow-soft);
+  border: 1px solid rgba(255,255,255,0.18);
+}
+
+.modal-title{
+  font-weight: 1000;
+  color: var(--lmu-blue);
+  letter-spacing: 0.2px;
+}
+
+.modal-img{
+  width:100%;
+  max-height:80vh;
+  object-fit:contain;
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,0.10);
+  margin-top: 10px;
+}
+
+/* =========================
+   CANVAS (if shown in debug)
+   ========================= */
+canvas{
+  max-width:100%;
+  border:1px solid #ccc;
+  border-radius:10px;
+}
+
+/* =========================
+   LAYER M — SIDEBAR LIST STYLES (NEW)
+   ========================= */
+#schedulesList{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  margin-top: 10px;
+}
+
+.schedule-empty{
+  background:#fff;
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: var(--shadow-soft);
+  border-left: 6px solid var(--lmu-blue);
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+.schedule-empty-title{
+  font-weight: 1000;
+  color: var(--lmu-blue);
+}
+
+.schedule-empty-sub{
+  margin-top: 6px;
+  font-weight: 800;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.schedule-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+
+  background:#fff;
+  border-radius: 14px;
+  padding: 10px 12px;
+
+  box-shadow: var(--shadow-soft);
+  border-left: 6px solid var(--lmu-crimson);
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+.schedule-row-left{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-width: 0;
+}
+
+.schedule-thumb{
+  width: 54px;
+  height: 54px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,0.10);
+  flex: 0 0 auto;
+}
+
+.schedule-row-name{
+  font-weight: 1000;
+  color: var(--lmu-blue);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
+}
+
+.schedule-row-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex: 0 0 auto;
+}
+
+/* optional: make sidebar buttons consistent with .btn-small */
+.btn-preview{
+  background: var(--lmu-blue);
+}
+
+.btn-preview:hover{
+  filter: brightness(1.05);
+}
+
+@media(max-width:900px){
+  .grid2{ grid-template-columns: 1fr; }
+  .row{ flex-direction: column; align-items: stretch; }
+  .row .btn{ width:100%; flex: 0 0 auto; }
+  .page > .row .btn{ min-width: 0; width: 100%; }
+
+  .schedule-row{
+    flex-direction: column;
+    align-items: stretch;
+    gap:10px;
+  }
+  .schedule-row-actions{
+    justify-content: flex-end;
+  }
+  .schedule-row-name{
+    max-width: 100%;
+  }
+}
+
+/* ===============================
+ * QUERY — Work ranges styling
+ * =============================== */
+
+.result-work {
+  margin-top: 6px;
+}
+
+.result-work-label {
+  font-size: 0.85rem;
+  color: var(--text-muted, #555);
+  margin-bottom: 4px;
+}
+
+.result-work-ranges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Work pills: visually distinct from free time */
+.pill-work {
+  background: rgba(140, 29, 24, 0.12);   /* LMU crimson, soft */
+  color: var(--lmu-crimson, #8C1D18);
+  border: 1px solid rgba(140, 29, 24, 0.35);
+}

@@ -1,0 +1,109 @@
+============================================================
+IMAGE COMPATIBILITY CHECKLIST
+============================================================
+
+This detector is designed for structured weekly schedule
+templates similar to the samples used in this project.
+
+Before uploading an image, make sure it meets the following
+conditions.
+
+------------------------------------------------------------
+REQUIRED (Must-Have)
+------------------------------------------------------------
+
+1) Monday-Friday Columns Only
+   - Exactly five weekday columns.
+   - Saturday/Sunday columns may cause misalignment.
+   - Extra columns can shift divider detection.
+
+2) Left Time Lane Visible
+   - The full vertical time scale must be visible.
+   - The top visible time must match the selected "Start Time".
+   - Dark tick marks must be visible.
+
+3) 30-Minute Grid
+   - Rows must align to consistent 30-minute increments.
+   - Times like 9:55 AM are supported, but snapped to the
+     nearest 30-minute block.
+   - Off-grid schedules reduce accuracy.
+
+4) White Background for Free Time
+   - Free cells must be near white.
+   - Dark mode schedules are not supported.
+   - Heavy tinting or shading may cause misclassification.
+
+5) Clear Grid Lines
+   - Horizontal and vertical grid lines must be visible.
+   - Extremely faint grids may break tick detection.
+
+------------------------------------------------------------
+SUPPORTED WITH LIMITS
+------------------------------------------------------------
+
+1) Events That Start at Non-30-Minute Times
+   Example:
+     9:55 AM - 11:35 AM
+
+   Behavior:
+     - Snaps availability to 30-minute blocks.
+     - Marks a block busy if any overlap exists.
+     - This is intentional.
+
+2) Large Full-Day Blocks
+   - Works if purple color is consistent.
+   - Heavy gradients or color shifts may fail detection.
+
+3) Very Thin Blocks
+   - Short events may be misread if probe bands
+     hit grid lines instead of interior pixels.
+   - Multi-band probing reduces but does not eliminate this.
+
+------------------------------------------------------------
+NOT SUPPORTED (Current Version)
+------------------------------------------------------------
+
+1) Saturday / Sunday Columns
+   - Architecture is calibrated for Monday-Friday only.
+   - Extra columns can corrupt day region mapping.
+
+2) Rotated / Cropped / Skewed Images
+   - Image must be upright.
+   - Entire grid must be visible.
+   - Left time lane must be fully visible.
+
+3) Non-White Free Cells
+   - Gray, patterned, gradient, or dark backgrounds
+     may break background calibration.
+
+4) Different Color Schemes
+   - Work blocks must be purple.
+   - Significant hue variation may not be detected.
+
+5) Completely Different Templates
+   - This is not a general OCR engine.
+   - It is a structured grid parser built for a
+     specific schedule format.
+
+------------------------------------------------------------
+KNOWN LIMITS
+------------------------------------------------------------
+
+- Snaps all availability to 30-minute blocks.
+- Any overlap within a block marks it busy.
+- Works best with clean exported images (PNG preferred).
+- JPEG compression artifacts may slightly affect accuracy.
+
+------------------------------------------------------------
+SUMMARY
+------------------------------------------------------------
+
+This system is robust for:
+  - Clean Monday-Friday schedule exports
+  - Consistent 30-minute grid layouts
+  - White backgrounds
+  - Purple work blocks
+
+It is not intended to parse arbitrary schedule designs.
+
+============================================================

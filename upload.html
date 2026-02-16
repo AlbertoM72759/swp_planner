@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SAD — Upload</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="link" href="index.html">← Home</a>
+    <div class="spacer"></div>
+    <a class="link" href="query.html">Go to Query →</a>
+  </header>
+  <main class="page">
+    <h1>Upload / Add Schedules</h1>
+
+    <div class="layout-upload">
+
+      <!-- LEFT: Upload workflow -->
+      <section class="card upload-main">
+        <label class="label">Person Name</label>
+        <input id="personName" class="input" placeholder="e.g., Luis" />
+
+        <label class="label">Start time on the image</label>
+        <select id="startTime" class="input"></select>
+
+        <label class="label">Schedule Image</label>
+        <input id="imageInput" class="input" type="file" accept="image/*" />
+
+        <div class="row">
+          <button id="confirmStartTimeButton" class="btn" disabled>
+            Confirm Start Time
+          </button>
+        </div>
+
+        <div class="row">
+          <button id="addScheduleButton" class="btn">Add Schedule</button>
+          <button id="clearAllButton" class="btn btn-danger">Clear All</button>
+        </div>
+
+        <canvas id="canvas" style="display:none;"></canvas>
+
+        <div id="phase1PreviewWrap" style="display:none; margin-top:12px;">
+          <div class="label" style="margin:0 0 8px;">Preview</div>
+          <img id="phase1PreviewImg" class="modal-img" alt="Phase 1 preview" />
+        </div>
+
+        <div class="muted" id="statusText"></div>
+        <div id="uploadStatus" class="status-bubble status-idle" style="display:none;"></div>
+      </section>
+
+      <!-- RIGHT: Saved sidebar -->
+      <aside class="card upload-sidebar">
+        <div class="row">
+          <h2 style="margin:0;">Saved</h2>
+          <div class="spacer"></div>
+
+          <button id="toggleListButton" class="btn-small btn-toggle" type="button">
+            Hide
+          </button>
+
+          <div class="pill">Count: <span id="schedulesCount">0</span></div>
+        </div>
+
+        <div id="schedulesList"></div>
+      </aside>
+    
+    </div>
+
+    <!-- Preview modal -->
+    <div id="previewModal" class="modal" style="display:none;">
+      <div class="modal-card">
+        <div class="row">
+          <div id="previewTitle" class="modal-title"></div>
+          <div class="spacer"></div>
+          <button id="previewClose" class="btn-small">Close</button>
+        </div>
+        <img id="previewImg" class="modal-img" alt="preview" />
+      </div>
+    </div>
+  </main>
+
+ <script defer src="app.js"></script>
+  <script defer src="upload.js"></script>
+</body>
+</html>
