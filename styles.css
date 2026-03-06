@@ -17,27 +17,77 @@
 
 *{ box-sizing:border-box; }
 
+/* =========================
+   THEME SWITCH (V1 / V2)
+   - controlled by: <body data-theme="v1|v2">
+   ========================= */
+
+/* Base body structure ONLY (no theme background here) */
 body{
   margin: 0;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-
-  background-color: var(--lmu-blue);
-  background-image: url("./images/spongebob.png");
-  background-repeat: repeat;
-  background-size: 200px;
-
   color: var(--text-main);
 }
 
+/* Theme variables (no crimson; theme owns palette) */
+body[data-theme="v1"],
+body[data-theme="v2"]{
+  --brand-primary: #002855;   /* default fallback */
+  --brand-accent:  #111111;   /* default fallback */
+  --lmu-blue: var(--brand-primary);
+  --lmu-crimson: var(--brand-accent);
+}
+
+/* V1 = SpongeBob overlay + pink vibe */
+body[data-theme="v1"]{
+  --brand-primary: #3cd9f0a1;   /* blue-ish accent used in your topbar gradient */
+  --brand-accent:  #db16a999;   /* pink */
+
+  background-color: #db16a999;
+  background-image: url("./images/spongebob_bg_transparent.png");
+  background-repeat: repeat;
+  background-size: 200px;
+  background-position: 0 0;
+}
+
+/* V2 = Sunset only */
+body[data-theme="v2"]{
+  --brand-primary: #002855;  /* deep/navy text + accents */
+  --brand-accent:  #000000;  /* dark accent if you want */
+
+  background-color: #AAC1DC;
+  background-image: url("./images/sunset.png");
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center center;
+}
+
+.topbar .spacer{ flex:1; }
+
+.topbar .link{
+  color:#fff;
+  text-decoration:none;
+  font-weight:800;
+  opacity:0.95;
+}
+
+.topbar .link:hover{
+  opacity:1;
+  text-decoration:underline;
+}
+
 /* =========================
-   TOP BAR (shared)
+   TOP BAR (shared — applies to BOTH themes)
    ========================= */
 .topbar{
   display:flex;
   align-items:center;
   gap:14px;
   padding:14px 18px;
-  background: rgba(0,0,0,0.12);
+
+  /* Use theme palette in BOTH themes */
+  background: linear-gradient(90deg, var(--brand-primary), var(--brand-accent));
+
   border-bottom: 1px solid rgba(255,255,255,0.12);
 }
 
@@ -75,7 +125,7 @@ h1{
 h2{
   margin:0;
   font-weight:900;
-  color: var(--lmu-blue);
+  color: var(--brand-primary);;
 }
 
 .muted{
@@ -140,9 +190,8 @@ h2{
 }
 
 .input:focus{
-  outline:none;
-  border-color: var(--lmu-crimson);
-  box-shadow: 0 0 0 3px rgba(140,29,24,0.14);
+  border-color: var(--brand-accent);
+  box-shadow: 0 0 0 3px rgba(0,0,0,0.12);
 }
 
 /* Keep native selects readable */
@@ -154,8 +203,8 @@ select.input option{
 /* =========================
    BUTTONS (new class system)
    ========================= */
-.btn{
-  background: var(--lmu-crimson);
+.btn{ 
+  background: var(--brand-accent);
   color:#fff;
   border:none;
   border-radius: 12px;
@@ -171,7 +220,7 @@ select.input option{
 }
 
 .btn-toggle{
-  background: var(--lmu-blue);
+  background: var(--brand-primary); 
 }
 .btn-toggle:hover{
   filter: brightness(1.05);
@@ -192,7 +241,7 @@ select.input option{
 }
 
 .btn-small{
-  background: var(--lmu-crimson);
+  background: var(--brand-accent); 
   color:#fff;
   border:none;
   border-radius: 10px;
@@ -264,7 +313,7 @@ select.input option{
   background: #f1f3f6;
   border: 1px solid #d0d4da;
   font-weight: 900;
-  color: var(--lmu-blue);
+  color: var(--brand-primary);;
 }
 
 .results-head .muted{
@@ -277,7 +326,7 @@ select.input option{
 .result-name{
   font-weight: 900;
   text-transform: uppercase;
-  color: var(--lmu-blue);
+  color: var(--brand-primary);;
   margin-bottom: 8px;
 }
 
@@ -298,7 +347,7 @@ select.input option{
   padding:6px 10px;
   font-weight:900;
   font-size:13px;
-  color:var(--lmu-blue);
+  color:var(--brand-primary);
 }
 
 .warn{
@@ -306,7 +355,7 @@ select.input option{
   border-radius: 14px;
   padding: 12px 14px;
   box-shadow: var(--shadow-soft);
-  border-left: 6px solid var(--lmu-crimson);
+  border-left: 6px solid var(--brand-accent);;
   border: 1px solid rgba(0,0,0,0.06);
   font-weight: 900;
   color: var(--text-main);
@@ -325,7 +374,7 @@ select.input option{
 .skipped summary{
   cursor: pointer;
   font-weight: 900;
-  color: var(--lmu-blue);
+  color: var(--brand-primary);;
 }
 
 .result-bubble{
@@ -389,7 +438,7 @@ select.input option{
 
 /* Empty / warn states (if you use them) */
 .result-bubble-empty{
-  border-left-color: var(--lmu-blue);
+  border-left-color: var(--brand-primary);;
 }
 
 .result-bubble-warn{
@@ -451,7 +500,7 @@ body.modal-open { overflow: hidden; }
 
 .modal-title{
   font-weight: 1000;
-  color: var(--lmu-blue);
+  color: var(--brand-primary);;
   letter-spacing: 0.2px;
 }
 
@@ -494,7 +543,7 @@ canvas{
 
 .schedule-empty-title{
   font-weight: 1000;
-  color: var(--lmu-blue);
+  color: var(--brand-primary);;
 }
 
 .schedule-empty-sub{
@@ -515,7 +564,7 @@ canvas{
   padding: 10px 12px;
 
   box-shadow: var(--shadow-soft);
-  border-left: 6px solid var(--lmu-crimson);
+  border-left: 6px solid var(--brand-accent);;
   border: 1px solid rgba(0,0,0,0.06);
 }
 
@@ -537,7 +586,7 @@ canvas{
 
 .schedule-row-name{
   font-weight: 1000;
-  color: var(--lmu-blue);
+  color: var(--brand-primary);;
   text-transform: uppercase;
   letter-spacing: 0.3px;
   white-space: nowrap;
@@ -602,8 +651,8 @@ canvas{
 }
 
 /* Work pills: visually distinct from free time */
-.pill-work {
-  background: rgba(140, 29, 24, 0.12);   /* LMU crimson, soft */
-  color: var(--lmu-crimson, #8C1D18);
-  border: 1px solid rgba(140, 29, 24, 0.35);
+.pill-work{
+  background: rgba(0,0,0,0.08);
+  color: var(--brand-accent);
+  border: 1px solid rgba(0,0,0,0.22);
 }

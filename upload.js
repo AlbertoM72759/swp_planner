@@ -294,14 +294,37 @@
 
     // Final nav = navCore + anchor + optional timeIndex
     const navFinal = tryFinalizeNavWithStartTime(__PHASE1__.navCore, startTime);
+        // DEBUG: minimal Phase 2 snapshot (for 6:00 AM + random fails)
+    try {
+      const t = navFinal?.ticksForMap;
+      const tickCount = Array.isArray(t) ? t.length : -1;
+      const firstTickY = (Array.isArray(t) && t.length) ? t[0] : null;
+      const lastTickY  = (Array.isArray(t) && t.length) ? t[t.length - 1] : null;
+
+      console.log("STACK UPLOAD: PHASE2 SNAPSHOT", {
+        personName,
+        startTime,
+        tickCount,
+        firstTickY,
+        lastTickY,
+        hasDayRegions: !!navFinal?.dayRegions,
+        hasSlotBands: !!navFinal?.slotBands,
+        hasBg: !!(navFinal?.bgWhite || navFinal?.bg),
+        slotBandsN: Array.isArray(navFinal?.slotBands) ? navFinal.slotBands.length : -1,
+      });
+    } catch (e) {
+      console.warn("STACK UPLOAD: PHASE2 SNAPSHOT failed", e);
+    }
     const pre = window.LAST_PRE;
     if (!pre) {
       console.warn("LAST_PRE missing — cannot finalize");
+      showStatus("idle", "Finalize failed.", "Missing LAST_PRE (Phase 1 precompute not ready).");
       return;
     }
 
     if (typeof window.computeAvailFromFrozenNav !== "function") {
       console.warn("computeAvailFromFrozenNav() missing — cannot finalize");
+      showStatus("idle", "Finalize failed.", "Missing computeAvailFromFrozenNav() in app.js.");
       return;
     }
 
@@ -312,6 +335,7 @@
 
     if (!a?.ok || !a?.avail) {
       console.warn("Availability compute failed", a);
+      showStatus("idle", "Finalize failed.", a?.reason || "Availability compute failed (see console).");
       return;
     }
 
@@ -343,6 +367,16 @@
       meta: { phase1: true, phase2: true, liveSrc: (__PHASE1__?.liveSrc || null) }
     });
 
+    console.log("DEBUG: publishSession returned", {
+      ready: sess?.ready,
+      hasSess: !!sess,
+      hasNav: !!sess?.nav,
+      hasAvail: !!sess?.avail,
+      hasThumb: !!sess?.thumb,
+      personName: sess?.personName,
+    });
+    console.log("DEBUG: __SAD_SESSION__", window.__SAD_SESSION__);
+
     // Ping Layer M gate updater (if present)
     if (typeof window.M_onSessionPublished === "function") {
       try { window.M_onSessionPublished(); } catch {}
@@ -368,28 +402,102 @@
   }
 
   function bind() {
+    if(window.__SAD_UPLOAD_BOUND__) return;
+    window.__SAD_UPLOAD_BOUND__ = true;
     // Re-grab live nodes (in case Layer M re-rendered)
-    const file0   = document.getElementById("imageInput");
-    const startEl = document.getElementById("startTime");
+    const file0    = document.getElementById("imageInput");
+    const startEl  = document.getElementById("startTime");
     const personEl = document.getElementById("personName");
-    const confirmEl = document.getElementById("confirmStartTimeButton");
+    const confirmEl= document.getElementById("confirmStartTimeButton");
+    const listEl   = document.getElementById("schedulesList");
+    const closeEl  = document.getElementById("previewClose");
+    const modal0   = document.getElementById("previewModal");
+    const toggleEl = document.getElementById("toggleListButton");
 
     if (!file0) {
       console.warn("upload.js: missing #imageInput");
       return;
     }
 
-    // Dedupe ONLY the file input (safe)
+    // Dedupe file input (safe)
     const fileEl = rebindOnce(file0);
 
-    // ✅ Guarantee startTime has options (don’t rely on earlier timing)
+    const addEl   = document.getElementById("addScheduleButton") || null;
+    const clearEl = document.getElementById("clearAllButton") || null;
+
+    // ✅ Show/Hide Saved list (UI-only; must NOT depend on session readiness)
+    if (toggleEl && !toggleEl.dataset.boundClick) {
+      toggleEl.dataset.boundClick = "1";
+      toggleEl.disabled = false;
+
+      const apply = (collapsed) => {
+        if (listEl) listEl.style.display = collapsed ? "none" : "block";
+        toggleEl.textContent = collapsed ? "Show" : "Hide";
+        try { localStorage.setItem("SAD_UPLOAD_LIST_COLLAPSED", collapsed ? "1" : "0"); } catch {}
+      };
+
+      let collapsed = false;
+      try { collapsed = localStorage.getItem("SAD_UPLOAD_LIST_COLLAPSED") === "1"; } catch {}
+      apply(collapsed);
+
+      toggleEl.addEventListener("click", () => {
+        collapsed = !collapsed;
+        apply(collapsed);
+      });
+    }
+
+    // ✅ Clear All click (wiring-only) — NO double-clear
+    if (clearEl && !clearEl.dataset.boundClick) {
+      clearEl.dataset.boundClick = "1";
+      clearEl.addEventListener("click", async () => {
+        // Prefer Layer M wrapper if present
+        if (typeof window.M_onClearAllClick === "function") {
+          try {
+            await Promise.resolve(window.M_onClearAllClick());
+            // ensure UI refresh even if Layer M only updates count
+            if (typeof window.M_renderSchedulesList === "function") {
+              try { window.M_renderSchedulesList(); } catch {}
+            }
+            showStatus("idle", "Cleared.", "All saved schedules removed.");
+          } catch (e) {
+            console.error("M_onClearAllClick failed:", e);
+            showStatus("idle", "Clear All failed.", e?.message || String(e));
+          }
+          return;
+        }
+
+        // Fallback: core clear + rerender
+        if (typeof window.clearAllSchedules !== "function") {
+          showStatus("idle", "Clear All failed.", "Missing clearAllSchedules() (or M_onClearAllClick).");
+          return;
+        }
+
+        try {
+          showStatus("working", "Clearing…", "Removing all saved schedules");
+          await Promise.resolve(window.clearAllSchedules());
+
+          if (typeof window.M_renderSchedulesList === "function") {
+            await Promise.resolve(window.M_renderSchedulesList());
+          }
+
+          showStatus("idle", "Cleared.", "All saved schedules removed.");
+        } catch (e) {
+          console.error("clearAllSchedules failed:", e);
+          showStatus("idle", "Clear All failed.", e?.message || String(e));
+        }
+      });
+    }
+
+    // ✅ Start time dropdown MUST include 6:00 AM (upload page)
     if (startEl && typeof window.populateTimes === "function") {
-      // Only repopulate if empty (won’t spam/reset user choice)
-      if (!startEl.options || startEl.options.length === 0) {
+      const needPopulate = (!startEl.options || startEl.options.length === 0);
+      if (needPopulate) {
         window.populateTimes(startEl, { startMin: 6 * 60, endMin: 22 * 60, stepMin: 30 });
+        startEl.value = "6:00 AM";
       }
     }
 
+    // ✅ File input handler (deduped by rebindOnce on file input)
     fileEl.addEventListener("change", async () => {
       const file = fileEl.files && fileEl.files[0];
       if (!file) return;
@@ -402,21 +510,176 @@
       }
     });
 
-    if (confirmEl) {
+    // ✅ Confirm button (dedupe via dataset flag; NO cloning)
+    if (confirmEl && !confirmEl.dataset.boundClick) {
+      confirmEl.dataset.boundClick = "1";
       confirmEl.addEventListener("click", () => {
         if (!__PHASE1__) return;
         runPhase2Finalize();
       });
     }
 
-    if (startEl) {
+    // ✅ Start time change (dedupe via dataset flag; NO cloning)
+    if (startEl && !startEl.dataset.boundChange) {
+      startEl.dataset.boundChange = "1";
       startEl.addEventListener("change", () => {
         if (!__PHASE1__) return;
         runPhase2Finalize();
       });
     }
-  }
 
+    // ✅ Sidebar actions: Preview / Delete — robust delegation (dedupe once on document)
+    if (!document.body.dataset.boundSidebarDelegation) {
+      document.body.dataset.boundSidebarDelegation = "1";
+
+      document.addEventListener("click", async (e) => {
+        const btn = e.target?.closest?.("#schedulesList button[data-action]");
+        if (!btn) return;
+
+        const action = btn.getAttribute("data-action");
+        const id = btn.getAttribute("data-id");
+        if (!action || !id) return;
+
+        if (action === "preview") {
+          if (typeof window.M_onPreviewClick === "function") {
+            try { await window.M_onPreviewClick(id); }
+            catch (err) {
+              console.error("M_onPreviewClick failed:", err);
+              showStatus("idle", "Preview failed.", err?.message || String(err));
+            }
+            return;
+          }
+
+          if (typeof window.SAD_getPreviewBlob === "function" && modal0) {
+            try {
+              const r = await window.SAD_getPreviewBlob(id);
+
+              // Normalize: allow Blob OR {ok, blob} OR direct url string
+              let blob = null;
+              let directUrl = null;
+
+              if (r instanceof Blob) {
+                blob = r;
+              } else if (r && typeof r === "object") {
+                if (r.blob instanceof Blob) blob = r.blob;
+                if (typeof r.url === "string") directUrl = r.url;
+              } else if (typeof r === "string") {
+                directUrl = r;
+              }
+
+              if (!blob && !directUrl) {
+                console.log("DEBUG preview return:", r);
+
+                // Quiet fallback for legacy schedules (saved before previews were stored)
+                showStatus(
+                  "idle",
+                  "No saved preview for this schedule.",
+                  "This is normal for older saves — re-add the schedule to generate a stored preview."
+                );
+                return;
+              }
+
+              const img = document.getElementById("previewImg");
+              if (!img) {
+                showStatus("idle", "Preview unavailable.", "Missing #previewImg in DOM.");
+                return;
+              }
+              const title = document.getElementById("previewTitle");
+
+              // Clean old objectURL if we created one last time
+              if (img && img.dataset.objectUrl === "1" && img.src) {
+                try { URL.revokeObjectURL(img.src); } catch {}
+                img.dataset.objectUrl = "0";
+              }
+
+              if (img) {
+                if (directUrl) {
+                  img.src = directUrl;
+                  img.dataset.objectUrl = "0";
+                } else {
+                  const url = URL.createObjectURL(blob);
+                  img.src = url;
+                  img.dataset.objectUrl = "1";
+                }
+              }
+
+              if (title) title.textContent = "Preview";
+
+              modal0.style.display = "flex";
+              document.body.classList.add("modal-open");
+            } catch (err) {
+              console.error("Preview failed:", err);
+              showStatus("idle", "Preview failed.", err?.message || String(err));
+            }
+          }
+        }
+
+        if (action === "delete") {
+          if (typeof window.M_onDeleteScheduleClick === "function") {
+            try { await window.M_onDeleteScheduleClick(id); }
+            catch (err) {
+              console.error("M_onDeleteScheduleClick failed:", err);
+              showStatus("idle", "Delete failed.", err?.message || String(err));
+            }
+            return;
+          }
+
+          const del = window.deleteSchedule || window.deleteScheduleById;
+          if (typeof del !== "function") {
+            showStatus("idle", "Delete failed.", "Missing deleteSchedule()/deleteScheduleById() (or M_onDeleteScheduleClick).");
+            return;
+          }
+
+          try {
+            const r = del(id);
+            const rr = (r && typeof r.then === "function") ? await r : r;
+
+            if (rr && rr.ok === false) {
+              showStatus("idle", "Delete failed.", rr.reason || "unknown");
+              return;
+            }
+
+            if (typeof window.M_renderSchedulesList === "function") {
+              try { window.M_renderSchedulesList(); } catch {}
+            }
+            showStatus("idle", "Deleted.", "");
+          } catch (err) {
+            console.error("Delete failed:", err);
+            showStatus("idle", "Delete failed.", err?.message || String(err));
+          }
+          return;
+        }
+      }, { capture: true });
+    }
+
+    // ✅ Modal close (dedupe via dataset flag; NO cloning)
+    if (closeEl && modal0 && !closeEl.dataset.boundClick) {
+      closeEl.dataset.boundClick = "1";
+      closeEl.addEventListener("click", () => {
+        modal0.style.display = "none";
+        document.body.classList.remove("modal-open");
+
+        const img = document.getElementById("previewImg");
+        if (img && img.src) {
+          try { URL.revokeObjectURL(img.src); } catch {}
+          img.src = "";
+        }
+      });
+    }
+
+    // ✅ Initial UI sync on load (wiring-only)
+    if (typeof window.M_renderSchedulesList === "function") {
+      try { window.M_renderSchedulesList(); } catch (e) {
+        console.warn("Initial render list failed:", e);
+      }
+    }
+
+    if (typeof window.M_onSessionGateChanged === "function") {
+      try { window.M_onSessionGateChanged(); } catch (e) {
+        console.warn("Initial gate sync failed:", e);
+      }
+    }
+  }
   // init after DOM
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", bind);

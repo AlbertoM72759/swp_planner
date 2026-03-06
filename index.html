@@ -12,18 +12,61 @@
   <header class="topbar">
     <a class="link" href="index.html">Home</a>
     <div class="spacer"></div>
+
     <a class="link" href="upload.html">Upload</a>
     <a class="link" href="query.html">Query</a>
+
+    <button id="themeToggle" class="btn-small btn-toggle" type="button" title="Switch theme">
+      V1
+    </button>
   </header>
   
   <div class="page">
     <h1>Schedule Availability Detector</h1>
     <p class="muted">Upload schedules once. Query anytime from saved data.</p>
+    <div class="card instructions" style="max-width:700px;margin:20px auto;text-align:center;">
+      <h2>How to Use This Website</h2>
 
+      <p>
+        This tool helps supervisors find when multiple students are available by
+        analyzing their weekly schedules.
+
+      <ol style="text-align:left;max-width:520px;margin:0 auto;">
+        <li>
+          Students must first go to <b>Gizmo</b> and export or screenshot their
+          weekly schedule.
+        </li>
+
+        <li>
+          Go to the <b>Upload</b> page and upload the schedule image.
+        </li>
+
+        <li>
+          Enter the student's name and confirm the start time of the schedule.
+        </li>
+
+        <li>
+          Click <b>Add Schedule</b> to save it.
+        </li>
+
+        <li>
+          Repeat this for every student whose schedule you want to analyze.
+        </li>
+
+        <li>
+          Go to the <b>Query</b> page to find shared availability across all saved schedules.
+        </li>
+      </ol>
+
+      <p class="muted" style="margin-top:10px;">
+        Schedules are stored locally in your browser, so you only need to upload them once.
+      </p>
+    </div>
     <div class="row">
       <a class="btn" href="upload.html">Upload / Add Schedules</a>
       <a class="btn" href="query.html">Group Query</a>
     </div>
   </div>
+  <script defer src="theme.js"></script>
 </body>
-</html><!-- deply test -->
+</html>

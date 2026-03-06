@@ -136,6 +136,13 @@
   document.addEventListener("DOMContentLoaded", () => {
     initTimes();
 
+    // ✅ Default window: 6:00 AM → 6:30 AM
+    const qs = $("queryStart");
+    const qe = $("queryEnd");
+
+    if (qs && !qs.value) qs.value = "6:00 AM";
+    if (qe && !qe.value) qe.value = "6:30 AM";
+
     const btn = $("queryButton");
     if (btn) btn.addEventListener("click", runQuery);
   });

@@ -569,9 +569,15 @@ function SAD_buildPreviewBlobFromCanvas(canvasEl, opts = {}) {
 
 // Convenience: objectURL wrapper + revoke
 async function SAD_getPreviewObjectURL(id) {
-  const r = await SAD_getPreviewBlob(id);
-  if (!r.ok || !r.blob) return { ok: false, reason: "blob missing" };
-  const url = URL.createObjectURL(r.blob);
+  const r = await window.SAD_getPreviewBlob(id);
+  const blob = r?.blob || null;
+
+  if (!(blob instanceof Blob)) {
+    console.log("DEBUG preview get returned:", r);
+    throw new Error("No preview Blob found for id=" + id);
+  }
+
+  const url = URL.createObjectURL(blob);
   return {
     ok: true,
     url,
@@ -1590,82 +1596,166 @@ function computeMedianDy(ticks) {
     : (diffs[mid - 1] + diffs[mid]) / 2;
 }
 
-function validateTicksFromFirst(rawTicks, preOrOpts = {}) {
-  const opts = (preOrOpts && preOrOpts.w && preOrOpts.h) ? {} : (preOrOpts || {});
+// === SURGICAL PATCH: replace validateTicksFromFirst(...) in app.js ===
+// Goal: stop anchoring on rawTicks[0]. Instead, derive dy from the most-consistent spacing
+// and choose the earliest start that yields the longest consistent ladder.
+// Handles mixed half-hour/hour lines by allowing occasional 2*dy jumps.
 
-  const {
-    snapFrac = 0.10,
-    minSnapPx = 4,
-    maxSnapPx = 18,     // was 14 (slightly more tolerant; still no phantom rows)
-    candidateCount = 8,
-    topBandFrac = 0.20,
-    minDyPx = 10,
-    maxDyPx = 90,
-    minValidated = 6,
-  } = opts;
+function validateTicksFromFirst(rawTicks, opts = {}) {
+  const snapWin = Number.isFinite(opts.snapWin) ? opts.snapWin : 6;
+  const minValidated = Number.isFinite(opts.minValidated) ? opts.minValidated : 10;
 
-  if (!Array.isArray(rawTicks) || rawTicks.length < 2) {
-    return { ok: false, ticks: rawTicks || [], dy: NaN, reason: "too few raw ticks" };
-  }
+  const raw = Array.isArray(rawTicks) ? rawTicks.slice().filter(Number.isFinite) : [];
+  raw.sort((a, b) => a - b);
 
-  const dy = computeMedianDy(rawTicks);
-  if (!Number.isFinite(dy) || dy < minDyPx || dy > maxDyPx) {
-    return { ok: false, ticks: rawTicks.slice(), dy, reason: "bad median dy" };
-  }
-
-  const snapWin = clamp(Math.round(dy * snapFrac), minSnapPx, maxSnapPx);
-
-  const yMin = rawTicks[0];
-  const yMax = rawTicks[rawTicks.length - 1];
-  const topCut = yMin + (yMax - yMin) * topBandFrac;
-
-  const candidates = [];
-  for (let i = 0; i < rawTicks.length && candidates.length < candidateCount; i++) {
-    if (rawTicks[i] <= topCut) candidates.push(i);
-    else break;
-  }
-  if (!candidates.length) candidates.push(0);
-
-  function validateFromIndex(startIndex) {
-    const validated = [rawTicks[startIndex]];
-    let expected = rawTicks[startIndex];
-    let rawIdx = startIndex + 1;
-
-    while (true) {
-      expected += dy;
-
-      const hit = nearestTickWithin(rawTicks, expected, snapWin, rawIdx);
-      if (!hit) break;
-
-      validated.push(hit.y);
-      rawIdx = hit.idx + 1;
-    }
-
-    return { ticks: validated, startIndex };
-  }
-
-  let best = null;
-  for (const startIndex of candidates) {
-    const v = validateFromIndex(startIndex);
-    if (!best || v.ticks.length > best.ticks.length) best = v;
-  }
-
-  const outTicks = best ? best.ticks : rawTicks.slice(0, 2);
-  const ok = outTicks.length >= minValidated;
-
-  const meta = {
-    ok,
-    dy,
+  const out = {
+    ok: false,
+    reason: "",
+    rawCount: raw.length,
+    validatedCount: 0,
+    ticks: [],
+    dy: null,
     snapWin,
-    startIndex: best ? best.startIndex : 0,
-    rawCount: rawTicks.length,
-    validatedCount: outTicks.length,
-    reason: ok ? "ok" : "too few validated ticks",
+    startIndex: 0,
   };
 
-  console.log("STACK G: ticks validation", meta);
+  if (raw.length < 2) {
+    out.reason = "too few raw ticks";
+    return out;
+  }
 
-  return { ticks: outTicks, ...meta };
+  // ----------------------------
+  // 1) Pick dy from "trustworthy evidence":
+  //    the dominant small diff cluster (ignore huge gaps / headers).
+  // ----------------------------
+  const diffs = [];
+  for (let i = 1; i < raw.length; i++) {
+    const d = raw[i] - raw[i - 1];
+    // Keep reasonable grid spacings only (tunable but safe):
+    if (d >= 12 && d <= 80) diffs.push(d);
+  }
+
+  if (diffs.length === 0) {
+    out.reason = "no usable diffs";
+    return out;
+  }
+
+  // Score candidate dy by how many diffs match dy or 2*dy (within tolerance).
+  // We try candidates from observed diffs and also half-diffs (for hour-lines only cases).
+  const candSet = new Set();
+  for (const d of diffs) {
+    candSet.add(Math.round(d));
+    candSet.add(Math.round(d / 2));
+  }
+
+  const tol = Math.max(2, snapWin + 1); // slightly looser than snapWin for dy estimation
+  let bestDy = null;
+  let bestScore = -1;
+
+  function scoreDy(dy) {
+    if (!Number.isFinite(dy) || dy < 12 || dy > 60) return -1;
+    let s = 0;
+    for (const d of diffs) {
+      if (Math.abs(d - dy) <= tol) s += 2;                 // strong
+      else if (Math.abs(d - 2 * dy) <= 2 * tol) s += 1;    // weaker but useful
+    }
+    return s;
+  }
+
+  for (const c of candSet) {
+    const s = scoreDy(c);
+    if (s > bestScore) {
+      bestScore = s;
+      bestDy = c;
+    }
+  }
+
+  if (!bestDy) {
+    out.reason = "failed to estimate dy";
+    return out;
+  }
+
+  out.dy = bestDy;
+
+  // ----------------------------
+  // 2) Given dy, find the best start index:
+  //    walk expectedY down the page snapping to nearest raw tick within snapWin.
+  //    Allow occasional 2*dy jump if one tick line is missing.
+  // ----------------------------
+  function nearestIdx(y, fromIdx) {
+    // raw is sorted; linear scan is fine (rawLen small), but keep it simple & stable.
+    let bestI = -1;
+    let bestAbs = Infinity;
+    for (let i = fromIdx; i < raw.length; i++) {
+      const a = Math.abs(raw[i] - y);
+      if (a < bestAbs) { bestAbs = a; bestI = i; }
+      // small optimization: once raw[i] surpasses y and we're getting worse, stop
+      if (raw[i] > y && a > bestAbs) break;
+    }
+    return { idx: bestI, dist: bestAbs };
+  }
+
+  function walkFrom(startIdx) {
+    const ticks = [raw[startIdx]];
+    let idxCursor = startIdx + 1;
+    let y = raw[startIdx];
+
+    // Hard cap so we never loop forever
+    const maxSteps = 200;
+
+    for (let step = 0; step < maxSteps; step++) {
+      const y1 = y + bestDy;
+      const n1 = nearestIdx(y1, idxCursor);
+
+      if (n1.idx >= 0 && n1.dist <= snapWin) {
+        ticks.push(raw[n1.idx]);
+        y = raw[n1.idx];
+        idxCursor = n1.idx + 1;
+        continue;
+      }
+
+      // Allow skip: look for 2*dy (missing half-hour or faint line)
+      const y2 = y + 2 * bestDy;
+      const n2 = nearestIdx(y2, idxCursor);
+
+      if (n2.idx >= 0 && n2.dist <= snapWin) {
+        ticks.push(raw[n2.idx]);
+        y = raw[n2.idx];
+        idxCursor = n2.idx + 1;
+        continue;
+      }
+
+      // No match: stop ladder
+      break;
+    }
+
+    return ticks;
+  }
+
+  let bestTicks = [];
+  let bestStart = 0;
+
+  for (let s = 0; s < raw.length; s++) {
+    const t = walkFrom(s);
+    if (t.length > bestTicks.length) {
+      bestTicks = t;
+      bestStart = s;
+    }
+  }
+
+  out.ticks = bestTicks;
+  out.validatedCount = bestTicks.length;
+  out.startIndex = bestStart;
+
+  if (out.validatedCount >= minValidated) {
+    out.ok = true;
+    out.reason = "ok";
+  } else {
+    out.ok = false;
+    out.reason = "too few validated ticks";
+  }
+
+  return out;
 }
 
 /*************************
@@ -1897,10 +1987,21 @@ function hasRowLikeStructure(pre, y, opts = {}) {
     }
 
     // ✅ require finite darkFrac (pipeline should always have it)
-    const ok =
+    // Accept either:
+    //  (A) "row has ink/texture" (your current rule)
+    //  (B) "row interior is very blank/white" (common when cells are empty / gridline is faint)
+    //      This prevents false stops when big schedule blocks hide horizontal lines elsewhere.
+    const blankOk =
+      nonWhiteFrac <= 0.01 &&              // basically all-white in that band
+      Number.isFinite(darkFrac) &&
+      darkFrac <= 0.02;                    // also basically no dark ink
+
+    const inkOk =
       nonWhiteFrac >= minNonWhiteFrac &&
       Number.isFinite(darkFrac) &&
       darkFrac <= maxDarkFrac;
+
+    const ok = inkOk || blankOk;
 
     return { ok, nonWhiteFrac, darkFrac, x0, x1 };
   }
@@ -2989,6 +3090,50 @@ function sampleWorkFrac(pre, slotBand, dayRegion, work, opts = {}) {
   return { ok: true, workFrac: Math.round(workFrac * 1000) / 1000, samples };
 }
 
+// -------------------------
+// NAV helper: trimDayRegionByDivider
+// Used by nav row-structure checks to avoid sampling right on divider lines.
+// -------------------------
+function trimDayRegionByDivider(region, dividerXs, insetPx = 6) {
+  if (!region) return region;
+
+  let { x0, x1 } = region;
+  if (!Number.isFinite(x0) || !Number.isFinite(x1) || x1 <= x0) return region;
+
+  // Always do a small inset away from day edges
+  x0 = Math.round(x0 + insetPx);
+  x1 = Math.round(x1 - insetPx);
+
+  // If we have divider Xs, avoid probing too near them
+  if (Array.isArray(dividerXs) && dividerXs.length) {
+    // nearest divider to left edge (within 40px window)
+    const leftNear = dividerXs.reduce((best, dx) => {
+      if (!Number.isFinite(dx)) return best;
+      if (dx <= x0 + 40 && dx > best) return dx;
+      return best;
+    }, -Infinity);
+
+    // nearest divider to right edge (within 40px window)
+    const rightNear = dividerXs.reduce((best, dx) => {
+      if (!Number.isFinite(dx)) return best;
+      if (dx >= x1 - 40 && dx < best) return dx;
+      return best;
+    }, +Infinity);
+
+    if (Number.isFinite(leftNear) && leftNear !== -Infinity) {
+      x0 = Math.max(x0, Math.round(leftNear + insetPx));
+    }
+    if (Number.isFinite(rightNear) && rightNear !== +Infinity) {
+      x1 = Math.min(x1, Math.round(rightNear - insetPx));
+    }
+  }
+
+  // Safety clamp
+  if (!Number.isFinite(x0) || !Number.isFinite(x1) || x1 <= x0) return region;
+
+  return { ...region, x0, x1 };
+}
+
 /*************************
  * LAYER H/I GLUE — computeFrozenNavFromPre(pre)
  *
@@ -3701,7 +3846,12 @@ function M_getSessionGate() {
 
   // Session must exist and be explicitly ready
   if (!sess) return { ok: false, missing: ["SESSION_MISSING"], sess: null };
-  if (!sess.ready) return { ok: false, missing: ["SESSION_NOT_READY"], sess };
+  if (!sess.ready) {
+    const reason = typeof sess.reason === "string" && sess.reason.startsWith("missing:")
+      ? sess.reason.replace("missing:", "").split(",").map(s => s.trim())
+      : ["SESSION_NOT_READY"];
+    return { ok: false, missing: reason, sess };
+  }
 
   // Strict key checks for Add Schedule
   const missing = [];
@@ -3710,7 +3860,6 @@ function M_getSessionGate() {
   if (!sess.nav?.slotBands) missing.push("slotBands");
   if (!sess.nav?.bgWhite && !sess.nav?.bg) missing.push("bg/bgWhite");
   if (!sess.nav?.ticksForMap) missing.push("ticksForMap");
-  if (!sess.thumb) missing.push("thumb"); // optional for saving, but UI wants it
 
   if (missing.length) return { ok: false, missing, sess };
 
@@ -3805,7 +3954,10 @@ function M_renderSchedulesList() {
     return `
       <div class="schedule-row" data-id="${id}">
         <div class="schedule-row-left">
-          ${hasThumb ? `<img class="schedule-thumb" src="${thumb}" alt="thumb" />` : ``}
+          ${hasThumb
+            ? `<img class="schedule-thumb" src="${thumb}" alt="thumb" />`
+            : `<div class="schedule-thumb" aria-hidden="true"></div>`
+          }
           <div class="schedule-row-name">${name}</div>
         </div>
 
