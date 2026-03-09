@@ -1987,21 +1987,10 @@ function hasRowLikeStructure(pre, y, opts = {}) {
     }
 
     // ✅ require finite darkFrac (pipeline should always have it)
-    // Accept either:
-    //  (A) "row has ink/texture" (your current rule)
-    //  (B) "row interior is very blank/white" (common when cells are empty / gridline is faint)
-    //      This prevents false stops when big schedule blocks hide horizontal lines elsewhere.
-    const blankOk =
-      nonWhiteFrac <= 0.01 &&              // basically all-white in that band
-      Number.isFinite(darkFrac) &&
-      darkFrac <= 0.02;                    // also basically no dark ink
-
-    const inkOk =
+    const ok =
       nonWhiteFrac >= minNonWhiteFrac &&
       Number.isFinite(darkFrac) &&
       darkFrac <= maxDarkFrac;
-
-    const ok = inkOk || blankOk;
 
     return { ok, nonWhiteFrac, darkFrac, x0, x1 };
   }
@@ -2287,36 +2276,54 @@ function buildGlobalTickLadder(pre, vTicks, dy, opts = {}) {
     stopReason = hPeak.reason || "no strong line peak";
 
     // Terminal tick: trust LEFT LANE once, using NON-WHITE and scanning a WIDER window.
-    // snapWin from validation is usually tiny (like 4) — too tight for Gizmo’s bottom border.
-    const snapWinTerm = clamp(Math.round(dy * 0.7), 10, 28); // dy=30 => ~21px
+    // But do NOT accept a candidate too close to the image bottom; that is often the frame/border.
+    const snapWinTerm = clamp(Math.round(dy * 0.7), 10, 28);
+    const bottomMarginPx = clamp(Math.round(dy * 0.7), 12, 24);
 
     const laneBest = findBestLaneMarkNearY(pre, expected, {
       lane: window.__TICK_LANE__ || null,
       bandH: 14,
-      minNonWhiteFrac: 0.05,   // can drop to 0.04 if needed
+      minNonWhiteFrac: 0.05,
       snapWin: snapWinTerm
     });
+
+    const tooCloseToBottom =
+      !!laneBest && 
+      Number.isFinite(laneBest.y) && 
+      laneBest.rect.y1 >= (pre.h - bottomMarginPx);
 
     console.log("STACK G2+: laneBest", {
       expected: Math.round(expected),
       snapWin,
       snapWinTerm,
+      bottomMarginPx,
       tickLane: window.__TICK_LANE__ || null,
-      laneBest
+      laneBest,
+      tooCloseToBottom
     });
 
     if (
       laneBest &&
-      Math.abs(laneBest.y - expected) <= snapWinTerm
+      Math.abs(laneBest.y - expected) <= snapWinTerm &&
+      !tooCloseToBottom
     ) {
       out.push(Math.round(laneBest.y));
       console.log("STACK G2+: appended terminal tick from left lane (NONWHITE)", {
         y: Math.round(laneBest.y),
         nonWhiteFrac: laneBest.nonWhiteFrac,
         rect: laneBest.rect,
-        snapWinTerm
+        snapWinTerm,
+        bottomMarginPx
+      });
+    } else if (laneBest && tooCloseToBottom) {
+      console.log("STACK G2+: rejected terminal tick near bottom border", {
+        y: Math.round(laneBest.y),
+        preH: pre.h,
+        bottomMarginPx,
+        cutoff: pre.h - bottomMarginPx
       });
     }
+
     break;
   }
 
@@ -2413,105 +2420,150 @@ function findDayDividers(pre, vTicks, opts = {}) {
     xEndFrac   = 0.985,
     bandH = 160,
     stripeW = 5,
+
+    // NEW: retry nearby horizontal bands only if baseline fails
+    retryOffsets = [0, -60, 60],
   } = opts;
 
   if (!pre?.whiteP || !pre?.darkP || !Number.isFinite(pre.w) || !Number.isFinite(pre.h)) {
     return { ok: false, reason: "missing pre requisites", xs: [], divs: [] };
   }
 
-  const yCenter = pickDayBandY(pre, vTicks);
+  const baseYCenter = pickDayBandY(pre, vTicks);
 
   const w = pre.w;
   const xStart = Math.floor(w * xStartFrac);
   const xEnd   = Math.floor(w * xEndFrac);
 
-  // --------------------------------------------------
-  // 1) FIND LEFTMOST DIVIDER (anchor)
-  // --------------------------------------------------
-  let left = null;
-  for (let x = xStart; x <= xEnd; x += 2) {
-    const s = scoreVLineAtX(pre, x, yCenter, { bandH, stripeW });
-    if (!s) continue;
-    if (s.nonWhiteFrac < 0.22) continue;
+  function attemptAtY(yCenter) {
+    yCenter = clamp(Math.floor(yCenter), 0, pre.h - 1);
 
-    left = { ...s, score: s.nonWhiteFrac + s.darkFrac * 0.25 };
-    break;
-  }
+    // --------------------------------------------------
+    // 1) FIND LEFTMOST DIVIDER (anchor)
+    // --------------------------------------------------
+    let left = null;
+    for (let x = xStart; x <= xEnd; x += 2) {
+      const s = scoreVLineAtX(pre, x, yCenter, { bandH, stripeW });
+      if (!s) continue;
+      if (s.nonWhiteFrac < 0.22) continue;
 
-  if (!left) {
-    return {
-      ok: false,
-      reason: "could not find leftmost divider",
-      yCenter,
-      xs: [],
-      divs: []
-    };
-  }
+      left = { ...s, score: s.nonWhiteFrac + s.darkFrac * 0.25 };
+      break;
+    }
 
-  // --------------------------------------------------
-  // 2) FIND RIGHTMOST DIVIDER
-  // --------------------------------------------------
-  let right = null;
-  for (let x = xEnd; x >= xStart; x -= 2) {
-    const s = scoreVLineAtX(pre, x, yCenter, { bandH, stripeW });
-    if (!s) continue;
-    if (s.nonWhiteFrac < 0.22) continue;
-
-    right = { ...s, score: s.nonWhiteFrac + s.darkFrac * 0.25 };
-    break;
-  }
-
-  if (!right || right.x <= left.x + 50) {
-    return {
-      ok: false,
-      reason: "could not find rightmost divider",
-      yCenter,
-      xs: [],
-      divs: []
-    };
-  }
-
-  // --------------------------------------------------
-  // 3) WALK EXPECTED POSITIONS
-  // --------------------------------------------------
-  const span = right.x - left.x;
-  const step = span / (expected - 1);
-
-  const divs = [];
-  for (let i = 0; i < expected; i++) {
-    const guess = left.x + step * i;
-
-    const best = findBestDividerNearX(pre, yCenter, guess, {
-      bandH,
-      stripeW
-    });
-
-    if (!best) {
+    if (!left) {
       return {
         ok: false,
-        reason: `missing divider ${i}`,
+        reason: "could not find leftmost divider",
         yCenter,
         xs: [],
         divs: []
       };
     }
 
-    divs.push(best);
+    // --------------------------------------------------
+    // 2) FIND RIGHTMOST DIVIDER
+    // --------------------------------------------------
+    let right = null;
+    for (let x = xEnd; x >= xStart; x -= 2) {
+      const s = scoreVLineAtX(pre, x, yCenter, { bandH, stripeW });
+      if (!s) continue;
+      if (s.nonWhiteFrac < 0.22) continue;
+
+      right = { ...s, score: s.nonWhiteFrac + s.darkFrac * 0.25 };
+      break;
+    }
+
+    if (!right || right.x <= left.x + 50) {
+      return {
+        ok: false,
+        reason: "could not find rightmost divider",
+        yCenter,
+        xs: [],
+        divs: []
+      };
+    }
+
+    // --------------------------------------------------
+    // 3) WALK EXPECTED POSITIONS
+    // --------------------------------------------------
+    const span = right.x - left.x;
+    const step = span / (expected - 1);
+
+    const divs = [];
+    for (let i = 0; i < expected; i++) {
+      const guess = left.x + step * i;
+
+      const best = findBestDividerNearX(pre, yCenter, guess, {
+        bandH,
+        stripeW
+      });
+
+      if (!best) {
+        return {
+          ok: false,
+          reason: `missing divider ${i}`,
+          yCenter,
+          xs: [],
+          divs: []
+        };
+      }
+
+      divs.push(best);
+    }
+
+    const xs = divs.map(d => d.x);
+
+    return {
+      ok: xs.length === expected,
+      yCenter,
+      xs,
+      divs: divs.map(d => ({
+        x: d.x,
+        score: +d.score.toFixed(3),
+        dark: +d.darkFrac.toFixed(3),
+        nonW: +d.nonWhiteFrac.toFixed(3)
+      })),
+      reason: "ok"
+    };
   }
 
-  const xs = divs.map(d => d.x);
+  let lastFail = null;
 
-  return {
-    ok: xs.length === expected,
-    yCenter,
-    xs,
-    divs: divs.map(d => ({
-      x: d.x,
-      score: +d.score.toFixed(3),
-      dark: +d.darkFrac.toFixed(3),
-      nonW: +d.nonWhiteFrac.toFixed(3)
-    })),
-    reason: "ok"
+  for (const off of retryOffsets) {
+    const yTry = baseYCenter + off;
+    const r = attemptAtY(yTry);
+
+    console.log("STACK H_RETRY: divider band attempt", {
+      baseYCenter,
+      offset: off,
+      yTry: clamp(Math.floor(yTry), 0, pre.h - 1),
+      ok: !!r?.ok,
+      reason: r?.reason || "",
+      xs: r?.xs || []
+    });
+
+    if (r?.ok) {
+      if (off !== 0) {
+        console.log("STACK H_RETRY: recovered divider band", {
+          baseYCenter,
+          recoveredOffset: off,
+          recoveredYCenter: r.yCenter,
+          xs: r.xs
+        });
+      }
+      return r;
+    }
+
+    lastFail = r;
+  }
+
+  return lastFail || {
+    ok: false,
+    reason: "divider band retry failed",
+    yCenter: baseYCenter,
+    xs: [],
+    divs: []
   };
 }
 
@@ -3153,8 +3205,152 @@ function computeFrozenNavFromPre(pre) {
     return null;
   }
 
-  // 1) pick tick lane
-  const lane = pickBestTickLane(pre);
+  // 1) pick tick lane (base guess only)
+  const baseLane = pickBestTickLane(pre);
+
+  // Retry only on weak first attempt (Option B)
+  const laneShiftFracs = [0.010, 0.020, 0.030];
+
+  function scoreValidatedAttempt(rawTicks, v, lane) {
+    const validatedCount = Array.isArray(v?.ticks) ? v.ticks.length : 0;
+
+    let giantGapCount = 0;
+    let maxGap = 0;
+    if (Array.isArray(v?.ticks) && Number.isFinite(v?.dy) && v.ticks.length >= 2) {
+      for (let i = 1; i < v.ticks.length; i++) {
+        const d = v.ticks[i] - v.ticks[i - 1];
+        if (Number.isFinite(d)) {
+          if (d > maxGap) maxGap = d;
+          if (d > 6 * v.dy) giantGapCount++;
+        }
+      }
+    }
+
+    const lastTick = validatedCount ? v.ticks[validatedCount - 1] : -Infinity;
+
+    const score =
+      (v?.ok ? 100000 : 0) +
+      validatedCount * 1000 +
+      (Array.isArray(rawTicks) ? rawTicks.length : 0) * 10 +
+      Math.max(0, Math.floor(lastTick)) -
+      giantGapCount * 5000 -
+      Math.max(0, maxGap);
+
+    return {
+      score,
+      validatedCount,
+      giantGapCount,
+      maxGap,
+      lastTick
+    };
+  }
+
+  function runLaneAttempt(trialLane, shiftLabel = 0) {
+    const rawTicksTrial = detectTimeTicksFromLeftLane(pre, trialLane);
+    const vTrial = validateTicksFromFirst(rawTicksTrial);
+    const quality = scoreValidatedAttempt(rawTicksTrial, vTrial, trialLane);
+
+    return {
+      shift: shiftLabel,
+      lane: trialLane,
+      rawTicks: rawTicksTrial,
+      v: vTrial,
+      quality
+    };
+  }
+
+  function isWeakAttempt(attempt) {
+    if (!attempt?.v?.ok) return true;
+    if ((attempt?.quality?.validatedCount || 0) < 10) return true;
+    return false;
+  }
+
+  // ----------------------------
+  // BASELINE ATTEMPT (always run)
+  // ----------------------------
+  let bestAttempt = runLaneAttempt(baseLane, 0);
+
+  console.log("STACK F_RETRY: baseline attempt", {
+    shift: 0,
+    lane: bestAttempt.lane,
+    rawCount: bestAttempt.rawTicks?.length || 0,
+    vOk: !!bestAttempt.v?.ok,
+    dy: bestAttempt.v?.dy,
+    validatedCount: bestAttempt.quality.validatedCount,
+    giantGapCount: bestAttempt.quality.giantGapCount,
+    maxGap: bestAttempt.quality.maxGap,
+    lastTick: bestAttempt.quality.lastTick,
+    score: bestAttempt.quality.score,
+    weak: isWeakAttempt(bestAttempt)
+  });
+
+  // ----------------------------
+  // CONDITIONAL RETRY (Option B)
+  // Only if baseline looks weak
+  // ----------------------------
+  if (isWeakAttempt(bestAttempt)) {
+    console.log("STACK F_RETRY: entering recovery mode", {
+      reason: !bestAttempt.v?.ok
+        ? "validator not ok"
+        : `validatedCount=${bestAttempt.quality.validatedCount} < 10`
+    });
+
+    for (const shift of laneShiftFracs) {
+      const trialLane = {
+        x0Frac: clamp(baseLane.x0Frac + shift, 0, 0.95),
+        x1Frac: clamp(baseLane.x1Frac + shift, 0.01, 0.99),
+      };
+
+      if (trialLane.x1Frac <= trialLane.x0Frac) continue;
+
+      const attempt = runLaneAttempt(trialLane, shift);
+
+      console.log("STACK F_RETRY: recovery lane attempt", {
+        shift,
+        lane: trialLane,
+        rawCount: attempt.rawTicks?.length || 0,
+        vOk: !!attempt.v?.ok,
+        dy: attempt.v?.dy,
+        validatedCount: attempt.quality.validatedCount,
+        giantGapCount: attempt.quality.giantGapCount,
+        maxGap: attempt.quality.maxGap,
+        lastTick: attempt.quality.lastTick,
+        score: attempt.quality.score
+      });
+
+      if (attempt.quality.score > bestAttempt.quality.score) {
+        bestAttempt = attempt;
+      }
+
+      // early stop if recovery finds a clearly healthy ladder
+      if (attempt.v?.ok && attempt.quality.validatedCount >= 14 && attempt.quality.giantGapCount === 0) {
+        bestAttempt = attempt;
+        break;
+      }
+    }
+  }
+
+  if (!bestAttempt) {
+    console.warn("NAV: bail @laneAttempts (no attempt produced output)");
+    return null;
+  }
+
+  const lane = bestAttempt.lane;
+  const rawTicks = bestAttempt.rawTicks;
+  const v = bestAttempt.v;
+
+  console.log("STACK F_RETRY: chosen attempt", {
+    shift: bestAttempt.shift,
+    lane,
+    rawCount: rawTicks?.length || 0,
+    vOk: !!v?.ok,
+    dy: v?.dy,
+    validatedCount: v?.ticks?.length || 0,
+    giantGapCount: bestAttempt.quality.giantGapCount,
+    maxGap: bestAttempt.quality.maxGap,
+    lastTick: bestAttempt.quality.lastTick,
+    score: bestAttempt.quality.score
+  });
 
   // Store pixel lane for terminal tick fallback helper (in-memory only)
   window.__TICK_LANE__ = {
@@ -3164,19 +3360,17 @@ function computeFrozenNavFromPre(pre) {
     x1Frac: lane.x1Frac
   };
 
-  // 2) raw ticks
-  const rawTicks = detectTimeTicksFromLeftLane(pre, lane);
   if (!Array.isArray(rawTicks) || rawTicks.length < 2) {
     console.warn("NAV: bail @rawTicks", { rawLen: rawTicks?.length, lane });
     return null;
   }
 
   // 3) validate ticks (walk down; no phantom rows)
-  const v = validateTicksFromFirst(rawTicks);
   if (!v?.ok || !Array.isArray(v.ticks) || v.ticks.length < 2) {
-    console.warn("NAV: bail @validateTicksFromFirst", { rawLen: rawTicks.length, v });
+    console.warn("NAV: bail @validateTicksFromFirst", { rawLen: rawTicks.length, v, lane });
     return null;
   }
+
   const vTicks = v.ticks;
   const dy = v.dy;
 
@@ -3186,15 +3380,13 @@ function computeFrozenNavFromPre(pre) {
     console.warn("NAV: bail @findDayDividers", divRes);
     return null;
   }
-  // Normalize to 6 day boundaries:
-  // keep the 5 internal separators + right edge
+
   const xs = divRes.xs;
 
-  // If we got more than 6 (e.g., outer frame included), trim extremes
   const normXs =
     xs.length === 6
       ? xs
-      : xs.slice(1, 7); // drop left outer border, keep Mon–Fri grid
+      : xs.slice(1, 7);
 
   divRes.xs = normXs;
 
@@ -3219,6 +3411,7 @@ function computeFrozenNavFromPre(pre) {
     console.warn("NAV: bail @buildSlotBandsFromTicks", { slots: slotBands?.length, ticks: ticksForMap?.length });
     return null;
   }
+
   // 7) background calibration (Friday first, then global fallback)
   let bgWhite = null;
 
@@ -3242,10 +3435,7 @@ function computeFrozenNavFromPre(pre) {
     slotBands,
     ticksForMap,
     bgWhite,
-
-    // Phase 2 will finalize based on dropdown selection
     anchorStartTime: "8:00 AM",
-
     preMeta: { w: pre.w, h: pre.h, ts: pre.meta?.ts || Date.now() },
     laneMeta: lane,
     dividerXs
