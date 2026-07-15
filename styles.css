@@ -298,6 +298,12 @@ select.input option{
    ========================= */
 #resultsContainer{
   margin-top: 8px;
+  display:flex;
+  flex-direction: column;
+  gap:16px;
+}
+
+.tier-grid{
   display:grid;
   grid-template-columns: repeat(auto-fit, minmax(240px,1fr));
   gap:12px;
@@ -463,6 +469,11 @@ select.input option{
 
 .status-bubble.status-working{
   border-left-color: var(--lmu-crimson);
+}
+
+.status-bubble.status-error{
+  border-left-color: #b3261e;
+  background: #fdf1f0;
 }
 
 .status-bubble .status-sub{
@@ -655,4 +666,83 @@ canvas{
   background: rgba(0,0,0,0.08);
   color: var(--brand-accent);
   border: 1px solid rgba(0,0,0,0.22);
+}
+
+/* ===============================
+ * QUERY — Result tiers
+ * Tier 1: Available (primary)
+ * Tier 2: Available + Placement (mixed, secondary)
+ * Tier 3: Placement only (collapsed bar, tertiary)
+ * =============================== */
+
+.tier-heading{
+  font-weight: 900;
+  color: var(--brand-primary);
+  margin: 0 0 10px;
+  padding-left: 2px;
+  font-size: 15px;
+  letter-spacing: 0.2px;
+}
+
+.tier-available .result-bubble{
+  border-left-color: #1e8f4e; /* green = clearly, fully available */
+}
+
+/* Mixed cards: same card shape, but a two-tone left border and a
+   slightly muted background communicate "not the same as pure available" */
+.result-bubble-mixed{
+  border-left-color: var(--lmu-crimson);
+  background: linear-gradient(180deg, #fff 0%, #fff 60%, #f7f0ef 100%);
+}
+
+.result-work-label{
+  font-size: 0.85rem;
+  color: var(--text-muted, #555);
+  margin-bottom: 4px;
+  font-weight: 800;
+}
+
+/* Tier 3: collapsed Placement bar — quiet, closed by default,
+   visually distinct from the "Skipped" bar below it */
+.tier-placement-bar{
+  grid-column: 1 / -1;
+  background: #fff;
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: var(--shadow-soft);
+  border-left: 6px solid #a03cc7;
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+.tier-placement-bar summary{
+  cursor: pointer;
+  font-weight: 900;
+  color: #7a2f9c;
+  list-style: none;
+}
+
+.tier-placement-bar summary::-webkit-details-marker{
+  display: none;
+}
+
+.tier-placement-bar summary::before{
+  content: "▸ ";
+}
+
+.tier-placement-bar[open] summary::before{
+  content: "▾ ";
+}
+
+.tier-grid-compact{
+  margin-top: 10px;
+}
+
+/* Compact rows inside the Placement bar: smaller than a full card,
+   since only placement time is relevant here (no free time to show) */
+.result-bubble-placement{
+  border-left-color: #a03cc7;
+  padding: 10px 12px;
+  box-shadow: none;
+  border: 1px solid rgba(0,0,0,0.08);
+  background: #faf6fb;
 }

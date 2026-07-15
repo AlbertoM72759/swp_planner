@@ -48,13 +48,6 @@
   showPhase1Preview(null);
 
   function showStatus(mode, msg, sub = "") {
-    // Prefer your app.js helper if present
-    if (typeof window.setUploadStatus === "function") {
-      window.setUploadStatus(mode, msg, sub);
-      return;
-    }
-
-    // Fallback
     if (!elUploadStatus) return;
     if (!mode || mode === "hide") {
       elUploadStatus.style.display = "none";
@@ -63,8 +56,12 @@
       return;
     }
 
+    const modeClass = mode === "working" ? "status-working"
+      : mode === "error" ? "status-error"
+      : "status-idle";
+
     elUploadStatus.style.display = "block";
-    elUploadStatus.className = `status-bubble ${mode === "working" ? "status-working" : "status-idle"}`;
+    elUploadStatus.className = `status-bubble ${modeClass}`;
     elUploadStatus.innerHTML = `
       <div>${escapeHTML(msg)}</div>
       ${sub ? `<div class="status-sub">${escapeHTML(sub)}</div>` : ""}
@@ -75,6 +72,10 @@
     if (!elStatusText) return;
     elStatusText.textContent = s || "";
   }
+
+  // Expose so Layer M (ui-upload.js) can show plain-language errors
+  // in the same status bubble instead of failing silently.
+  window.setUploadStatus = showStatus;
 
   function escapeHTML(s) {
     return String(s ?? "")

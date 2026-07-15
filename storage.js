@@ -272,7 +272,13 @@ function queryAllSavedSchedulesDayRange(day, startStr, endStr) {
       ? loadSchedulesList()
       : (typeof window.loadSchedulesList === "function" ? window.loadSchedulesList() : []);
 
+    // ✅ Three-tier result buckets (replaces old single "available" list)
+    // Tier 1: available        — free time only, no placement overlap in window
+    // Tier 2: availablePlacement — has BOTH free time and placement overlap (mixed)
+    // Tier 3: placement        — placement overlap only, zero free time in window
     const available = [];
+    const availablePlacement = [];
+    const placement = [];
     const skipped = [];
 
     // Build merged ranges from a boolean mask over slot indices [i0, i1)
@@ -409,14 +415,37 @@ function queryAllSavedSchedulesDayRange(day, startStr, endStr) {
           startMin, endMin
         );
       }
-      // ✅ list if FREE or PLACEMENT exists
-      if (freeRanges.length || workRanges.length) {
+      // ✅ Route into the correct tier
+      const hasFree = freeRanges.length > 0;
+      const hasWork = workRanges.length > 0;
+
+      if (hasFree && !hasWork) {
         available.push({ person, freeRanges, workRanges });
+      } else if (hasFree && hasWork) {
+        availablePlacement.push({ person, freeRanges, workRanges });
+      } else if (!hasFree && hasWork) {
+        placement.push({ person, freeRanges, workRanges });
       } else {
         skipped.push({ person, reason: "No free or placement time in range" });
       }
     }
-    return { ok: true, day, startStr, endStr, available, skipped };
+
+    // Alphabetical sort within each tier (Q1b default)
+    function byPersonAsc(a, b) {
+      return String(a.person).localeCompare(String(b.person), undefined, { sensitivity: "base" });
+    }
+    available.sort(byPersonAsc);
+    availablePlacement.sort(byPersonAsc);
+    placement.sort(byPersonAsc);
+
+    return {
+      ok: true,
+      day, startStr, endStr,
+      available,            // tier 1
+      availablePlacement,   // tier 2
+      placement,            // tier 3
+      skipped
+    };
     } catch (e) {
     return { ok: false, reason: e?.message || String(e) };
   }

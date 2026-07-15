@@ -181,11 +181,11 @@ function M_updateAddButtonGate() {
 
   const g = M_getSessionGate();
   if (!g.ok) {
-    M_setDisabled(
-      M.addScheduleButton,
-      true,
-      `Add Schedule blocked — missing: ${g.missing.join(", ")}`
-    );
+    const friendly = (typeof window.SAD_explainMissingCodes === "function")
+      ? window.SAD_explainMissingCodes(g.missing)
+      : "We're still missing something — check the preview above.";
+
+    M_setDisabled(M.addScheduleButton, true, friendly);
   } else {
     M_setDisabled(M.addScheduleButton, false, "");
   }
@@ -370,7 +370,14 @@ async function M_onAddScheduleClick() {
     console.log("UI: Add Schedule ok", { id: r.id, count: r.count });
   } catch (e) {
     console.error("UI: Add Schedule failed:", e);
-    // keep your existing error bubble path if you have one
+
+    const friendly = (typeof window.SAD_explainSaveError === "function")
+      ? window.SAD_explainSaveError(e?.message || String(e))
+      : "This schedule could not be saved. Please try again.";
+
+    if (typeof window.setUploadStatus === "function") {
+      window.setUploadStatus("error", friendly);
+    }
   }
 }
 

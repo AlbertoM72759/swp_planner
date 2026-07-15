@@ -198,6 +198,69 @@ window.SAD_getLiveSrc = function (scheduleId) {
   window.snapshotNavState = snapshotNavState;
 })();
 
+/*************************
+ * PLAIN-LANGUAGE MESSAGES
+ * Translates internal failure codes into manager-facing copy.
+ * Wording is adapted from README.file's compatibility checklist,
+ * so every current failure path has a matching human sentence
+ * instead of a technical one.
+ *************************/
+(function attachPlainLanguageMessages() {
+
+  // One friendly line per internal "missing" code used by the
+  // Add Schedule readiness gate (M_getSessionGate in ui-upload.js).
+  const MISSING_CODE_MESSAGES = {
+    SESSION_MISSING:  "No schedule has been processed yet. Choose an image to get started.",
+    SESSION_NOT_READY: "We're still working on this schedule. Give it a moment, or try re-uploading the image.",
+    nav:              "We could not read this schedule image. Try uploading it again.",
+    dayRegions:       "We could not detect the Monday–Friday columns. Make sure all five weekday columns are visible and the image isn't cropped.",
+    slotBands:        "We could not detect the schedule's time grid. Make sure the horizontal grid lines are clearly visible.",
+    ticksForMap:      "We could not find the time labels on the left side. Make sure the full time lane is visible.",
+    "bg/bgWhite":     "We could not detect the schedule grid. Make sure free time is shown in white, not shaded, patterned, or dark."
+  };
+
+  const MISSING_FALLBACK = "We could not fully process this schedule. Make sure the weekday columns and time labels are visible.";
+
+  // codes: array of internal reason strings (e.g. from M_getSessionGate().missing)
+  // Returns a single friendly sentence for display (button tooltip, status bubble, etc).
+  function explainMissingCodes(codes) {
+    const list = Array.isArray(codes) ? codes : [];
+    if (!list.length) return "";
+
+    // Show the most specific known message first; fall back to a generic one.
+    for (const code of list) {
+      if (MISSING_CODE_MESSAGES[code]) return MISSING_CODE_MESSAGES[code];
+    }
+    return MISSING_FALLBACK;
+  }
+
+  // One friendly line per known save-time failure reason string,
+  // as returned by addScheduleFromCurrentSession() in storage.js.
+  const SAVE_ERROR_MESSAGES = [
+    { match: "session not ready",        text: "This schedule isn't ready to save yet. Confirm the start time and try again." },
+    { match: "session missing avail",    text: "We couldn't finish reading this schedule's availability. Try re-uploading the image." },
+    { match: "session missing nav",      text: "We couldn't read this schedule image. Try uploading it again." },
+    { match: "No nav in __SAD_SESSION__", text: "We couldn't read this schedule image. Try uploading it again." },
+    { match: "No avail in __SAD_SESSION__", text: "We couldn't finish reading this schedule's availability. Try re-uploading the image." },
+    { match: "upsertSchedule() not found", text: "Something went wrong while saving. Please try again." },
+    { match: "save failed",              text: "This schedule could not be saved. Please try again." }
+  ];
+
+  const SAVE_ERROR_FALLBACK = "Something went wrong while saving this schedule. Please try again.";
+
+  // reason: raw string from a failed save attempt (r.reason or e.message)
+  function explainSaveError(reason) {
+    const s = String(reason || "");
+    for (const entry of SAVE_ERROR_MESSAGES) {
+      if (s.includes(entry.match)) return entry.text;
+    }
+    return SAVE_ERROR_FALLBACK;
+  }
+
+  window.SAD_explainMissingCodes = explainMissingCodes;
+  window.SAD_explainSaveError = explainSaveError;
+})();
+
 // Call once on boot if not present
 if (!window.__SAD_SESSION__) resetSession("boot");
 
